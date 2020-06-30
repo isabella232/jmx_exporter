@@ -27,8 +27,11 @@ public class JmxCollectorTest {
         Cassandra.registerBean(mbs);
         CassandraMetrics.registerBean(mbs);
         Hadoop.registerBean(mbs);
+        HadoopDataNode.registerBean(mbs);
+
         TomcatServlet.registerBean(mbs);
         Bool.registerBean(mbs);
+        Camel.registerBean(mbs);
     }
 
     @Before
@@ -143,11 +146,17 @@ public class JmxCollectorTest {
 
       // Test Cassandra Bean.
       assertEquals(100, registry.getSampleValue("org_apache_cassandra_concurrent_CONSISTENCY_MANAGER_ActiveCount", new String[]{}, new String[]{}), .001);
-      // Test Cassandra MEtrics.
+      // Test Cassandra Metrics.
       assertEquals(.2, registry.getSampleValue("org_apache_cassandra_metrics_Compaction_Value", new String[]{"name"}, new String[]{"CompletedTasks"}), .001);
 
       // Test Hadoop Metrics.
       assertEquals(200, registry.getSampleValue("hadoop_DataNode_replaceBlockOpMinTime", new String[]{"name"}, new String[]{"DataNodeActivity-ams-hdd001-50010"}), .001);
+    }
+
+    @Test
+    public void nestedTabularDataTest() throws Exception {
+      JmxCollector jc = new JmxCollector("---").register(registry);
+      assertEquals(338, registry.getSampleValue("Hadoop_DataNodeInfo_DatanodeNetworkCounts", new String[]{"service", "key", "key_"}, new String[]{"DataNode", "1.2.3.4", "networkErrors"}), .001);
     }
 
     @Test
@@ -243,5 +252,21 @@ public class JmxCollectorTest {
       JmxCollector jc = new JmxCollector("---\nstartDelaySeconds: 1").register(registry);
       Thread.sleep(2000);
       assertEquals(1.0, registry.getSampleValue("boolean_Test_True", new String[]{}, new String[]{}), .001);
+    }
+
+    @Test
+    public void testCamelLastExchangFailureTimestamp() throws Exception{
+      String rulePattern =
+              "\n---\nrules:\n- pattern: 'org.apache.camel<context=([^,]+), type=routes, name=\"([^\"]+)\"><>LastExchangeFailureTimestamp'\n" +
+                      "  name: org.apache.camel.LastExchangeFailureTimestamp\n" +
+                      "  help: Exchanges Last Failure Timestamps\n" +
+                      "  type: UNTYPED\n" +
+                      "  labels:\n" +
+                      "    context: \"$1\"\n" +
+                      "    route: \"$2\"\n" +
+                      "    type: routes";
+      JmxCollector jc = new JmxCollector(rulePattern).register(registry);
+      Double actual = registry.getSampleValue("org_apache_camel_LastExchangeFailureTimestamp", new String[]{"context", "route", "type"}, new String[]{"my-camel-context", "my-route-name", "routes"});
+      assertEquals(Camel.EXPECTED_SECONDS, actual, 0);
     }
 }

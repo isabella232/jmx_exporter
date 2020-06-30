@@ -13,16 +13,18 @@ Agent is thus strongly encouraged.
 
 ## Running
 
-To run as a javaagent [download the jar](https://repo1.maven.org/maven2/io/prometheus/jmx/jmx_prometheus_javaagent/0.2.0/jmx_prometheus_javaagent-0.2.0.jar) and run:
+To run as a javaagent [download the jar](https://repo1.maven.org/maven2/io/prometheus/jmx/jmx_prometheus_javaagent/0.13.0/jmx_prometheus_javaagent-0.13.0.jar) and run:
 
 ```
-java -javaagent:./jmx_prometheus_javaagent-0.2.0.jar=8080:config.yaml -jar yourJar.jar
+java -javaagent:./jmx_prometheus_javaagent-0.13.0.jar=8080:config.yaml -jar yourJar.jar
 ```
 Metrics will now be accessible at http://localhost:8080/metrics
 
 To bind the java agent to a specific IP change the port number to `host:port`.
 
 See `./run_sample_httpserver.sh` for a sample script that runs the httpserver against itself.
+
+Please note that due to the nature of JMX the `/metrics` endpoint might exceed Prometheus default scrape timeout of 10 seconds.
 
 ## Building
 
@@ -34,6 +36,8 @@ The configuration is in YAML. An example with all possible options:
 ---
 startDelaySeconds: 0
 hostPort: 127.0.0.1:1234
+username: 
+password: 
 jmxUrl: service:jmx:rmi:///jndi/rmi://127.0.0.1:1234/jmxrmi
 ssl: false
 lowercaseOutputName: false
@@ -69,7 +73,7 @@ name     | The metric name to set. Capture groups from the `pattern` can be used
 value    | Value for the metric. Static values and capture groups from the `pattern` can be used. If not specified the scraped mBean value will be used.
 valueFactor | Optional number that `value` (or the scraped mBean value if `value` is not specified) is multiplied by, mainly used to convert mBean values from milliseconds to seconds.
 labels   | A map of label name to label value pairs. Capture groups from `pattern` can be used in each. `name` must be set to use this. Empty names and values are ignored. If not specified and the default format is not being used, no labels are set.
-help     | Help text for the metric. Capture groups from `pattern` can be used. `name` must be set to use this. Defaults to the mBean attribute decription and the full name of the attribute.
+help     | Help text for the metric. Capture groups from `pattern` can be used. `name` must be set to use this. Defaults to the mBean attribute description and the full name of the attribute.
 type     | The type of the metric, can be `GAUGE`, `COUNTER` or `UNTYPED`. `name` must be set to use this. Defaults to `UNTYPED`.
 
 Metric names and label names are sanitized. All characters other than `[a-zA-Z0-9:_]` are replaced with underscores,
@@ -110,9 +114,14 @@ If a given part isn't set, it'll be excluded.
 
 ## Debugging
 
-You can start the jmx's scraper in standlone mode in order to debug what is called 
+You can start the jmx's scraper in standalone mode in order to debug what is called 
 
-`java -cp jmx_exporter.jar io.prometheus.jmx.JmxScraper  service:jmx:rmi:your_url`
+```
+git clone https://github.com/prometheus/jmx_exporter.git
+cd jmx_exporter
+mvn package
+java -cp collector/target/collector*.jar  io.prometheus.jmx.JmxScraper  service:jmx:rmi:your_url
+```
 
 To get finer logs (including the duration of each jmx call),
 create a file called logging.properties with this content:

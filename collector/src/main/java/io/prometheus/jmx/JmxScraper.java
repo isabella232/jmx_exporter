@@ -149,6 +149,10 @@ class JmxScraper {
         final AttributeList attributes;
         try {
             attributes = beanConn.getAttributes(mbeanName, name2AttrInfo.keySet().toArray(new String[0]));
+            if (attributes == null) {
+                logScrape(mbeanName.toString(), "getAttributes Fail: attributes are null");
+                return;
+            }
         } catch (Exception e) {
             logScrape(mbeanName, name2AttrInfo.keySet(), "Fail: " + e);
             return;
@@ -186,7 +190,11 @@ class JmxScraper {
             Object value) {
         if (value == null) {
             logScrape(domain + beanProperties + attrName, "null");
-        } else if (value instanceof Number || value instanceof String || value instanceof Boolean) {
+        } else if (value instanceof Number || value instanceof String || value instanceof Boolean || value instanceof java.util.Date) {
+            if (value instanceof java.util.Date) {
+                attrType = "java.lang.Double";
+                value = ((java.util.Date) value).getTime() / 1000.0;
+            }
             logScrape(domain + beanProperties + attrName, value.toString());
             this.receiver.recordBean(
                     domain,
@@ -225,7 +233,6 @@ class JmxScraper {
             TabularType tt = tds.getTabularType();
 
             List<String> rowKeys = tt.getIndexNames();
-            LinkedHashMap<String, String> l2s = new LinkedHashMap<String, String>(beanProperties);
 
             CompositeType type = tt.getRowType();
             Set<String> valueKeys = new TreeSet<String>(type.keySet());
@@ -236,8 +243,17 @@ class JmxScraper {
             for (Object valu : tds.values()) {
                 if (valu instanceof CompositeData) {
                     CompositeData composite = (CompositeData) valu;
+                    LinkedHashMap<String, String> l2s = new LinkedHashMap<String, String>(beanProperties);
                     for (String idx : rowKeys) {
-                        l2s.put(idx, composite.get(idx).toString());
+                        Object obj = composite.get(idx);
+                        if (obj != null) {
+                            // Nested tabulardata will repeat the 'key' label, so
+                            // append a suffix to distinguish each.
+                            while (l2s.containsKey(idx)) {
+                              idx = idx + "_";
+                            }
+                            l2s.put(idx, obj.toString());
+                        }
                     }
                     for(String valueIdx : valueKeys) {
                         LinkedList<String> attrNames = extendedAttrKeys;
